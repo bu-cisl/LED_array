@@ -1,0 +1,6 @@
+# LED_array
+LED array reflectance microscopy for scattering-based multi-contrast imaging
+# Abstract
+LED array microscopy is an emerging platform for computational imaging with significant utility for biological imaging. Existing LED array systems often exploit transmission imaging geometries of standard brightfield microscopes that leave the rich backscattered field undetected. This backscattered signal contains high-resolution sample information with superb sensitivity to subtle structural features that make it ideal for biological sensing and detection. Here, we develop an LED array reflectance microscope capturing the sample’s backscattered signal. In particular, we demonstrate multimodal brightfield, darkfield, and differential phase contrast imaging on fixed and living biological specimens including Caenorhabditis elegans (C. elegans), zebrafish embryos, and live cell cultures. Video-rate multimodal imaging at 20 Hz records real time features of freely moving C. elegans and the fast beating heart of zebrafish embryos. Our new reflectance mode is a valuable addition to the LED array microscopic toolbox.
+# Citation
+If you find this project useful in your research, please consider citing our paper: LED array reflectance microscopy for scattering-based multi-contrast imaging
