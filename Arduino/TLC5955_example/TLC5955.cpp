@@ -240,7 +240,8 @@ void TLC5955::setFunctionData(bool DSPRPT, bool TMGRST, bool RFRESH, bool ESPWM,
 	data |= RFRESH << 2;
 	data |= ESPWM << 3;
 	data |= LSDVLT << 4;
-	Serial.println(data);
+  if (SERIAL_DEBUG)
+       Serial.println(data);
 	_functionData = data;
 }
 
