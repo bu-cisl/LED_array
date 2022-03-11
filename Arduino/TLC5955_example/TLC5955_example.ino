@@ -13,14 +13,17 @@
 
 TLC5955 tlc;
 int i, j;
-char Aleds[25] = {1,2,17,18,19,3,4,5,6,7,20,21,22,23,24,25,8,9,10,11,12,13,14,15,16};
+Timer loop_timer;
+rIDTArray led_arr;
+/*char Aleds[25] = {1,2,17,18,19,3,4,5,6,7,20,21,22,23,24,25,8,9,10,11,12,13,14,15,16};
 char Aledb[120] = {1,2,3,17,18,19,33,34,35,49,50,51,65,66,67,81,82,83,97,98,99,113,114,115,
 4,5,6,7,20,21,22,23,36,37,38,39,52,53,54,55,68,69,70,71,84,85,86,87,100,101,102,103,
 8,9,10,11,24,25,26,27,40,41,42,43,56,57,58,59,72,73,74,75,88,89,90,91,104,105,106,107,116,117,118,119,
 12,13,14,15,16,28,29,30,31,32,44,45,46,47,48,60,61,62,63,64,76,77,78,79,80,92,93,94,95,96,108,109,110,111,112,120};
-
-#define GSCLK 6 // On Arduino Mega
+*/
+#define GSCLK 6 
 #define LAT 2   // On Arduino Mega
+#define CAM 8 // camera trigger
 
 // Spi pins are needed to send out control bit (SPI only supports bytes)
 #define SPI_MOSI 11 // 51 on mega, 22 on teensy2.0++
@@ -28,6 +31,7 @@ char Aledb[120] = {1,2,3,17,18,19,33,34,35,49,50,51,65,66,67,81,82,83,97,98,99,1
 
 
 void setup() {
+  pinMode(CAM, OUTPUT);
 // Now set the GSCKGRB to an output and a 50% PWM duty-cycle
   // For simplicity all three grayscale clocks are tied to the same pin
   for (i=0; i<100; i++) {
@@ -58,7 +62,7 @@ void setup() {
 
   // Set Function Control Data Latch values. See the TLC5955 Datasheet for the purpose of this latch.
   //tlc.setFunctionData(false, true, true, false, true); // WORKS with fast update
- tlc.setFunctionData(true, false, false, true, true);  // WORKS generally
+  tlc.setFunctionData(true, false, false, true, true);  // WORKS generally
 
   // set all brightness levels to max (127)
   int currentVal = 127;
@@ -71,10 +75,18 @@ void setup() {
   tlc.setRgbPinOrder(0,1,2);
   tlc.setAllLed(0);
   tlc.updateLeds();
+  delay(1000);
+  tlc.setAllLed(1240);
+  tlc.updateLeds();
+  delay(1000);
+  tlc.setAllLed(0);
+  tlc.updateLeds();
+  delay(1000);
 
   // vars init
-  delay_until(0);
-  i=120;
+  led_arr.setTLC(&tlc);
+  loop_timer.delay_until(0);
+  i=0;
 }
 
 void loop() {
@@ -82,7 +94,9 @@ void loop() {
   //j=random(0, 5000);
   //for (j=0;j<120;j++)
   //tlc.setLed(Aledb[119]-1, random(0, 5000),random(0, 5000), random(0, 5000));
-  tlc.setLed(Aleds[i]+127,0,5535,0);
+  
+  led_arr.setLed(0,i ,0,65535,0);
+  //led_arr.setLed(2,8*(i%2) ,0,0,65535);
   //tlc.setAllLed(10*(i), 10*(i), 1000);
   //tlc.setAllLed(3000);
   //tlc.setLed(Aledb[i]-1,0,0,65535);
@@ -91,5 +105,11 @@ void loop() {
   i++;
   i%=25;
   //if(i<10) i=128;
-  delay_until(100000);
+  //Serial.print(i);
+  //Serial.println(" loop");
+  digitalWrite(CAM, HIGH);
+  delay(10);
+  digitalWrite(CAM, LOW);
+    
+  loop_timer.delay_until(200);
 }
