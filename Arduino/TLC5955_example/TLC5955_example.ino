@@ -13,6 +13,7 @@
 
 TLC5955 tlc;
 int i, j;
+unsigned char ring;
 Timer loop_timer;
 rIDTArray led_arr;
 /*char Aleds[25] = {1,2,17,18,19,3,4,5,6,7,20,21,22,23,24,25,8,9,10,11,12,13,14,15,16};
@@ -21,9 +22,33 @@ char Aledb[120] = {1,2,3,17,18,19,33,34,35,49,50,51,65,66,67,81,82,83,97,98,99,1
 8,9,10,11,24,25,26,27,40,41,42,43,56,57,58,59,72,73,74,75,88,89,90,91,104,105,106,107,116,117,118,119,
 12,13,14,15,16,28,29,30,31,32,44,45,46,47,48,60,61,62,63,64,76,77,78,79,80,92,93,94,95,96,108,109,110,111,112,120};
 */
-#define GSCLK 6 
+uint16_t p0[ 1]={62000};
+uint16_t p1[ 8]={59600, 60700, 57800, 61200, 62200, 58200, 58900, 55500};
+uint16_t p2[16]={58600, 58000, 57100, 55100, 58800, 58600, 59800, 57700,
+                 65100, 65300, 61200, 63500, 62000, 57700, 63900, 57700};
+uint16_t p3[24]={28100, 24700, 28400, 27000, 29900, 26700, 30100, 27900,
+                 27300, 31600, 32200, 29300, 31000, 33600, 34200, 31600,
+                 27300, 30400, 30700, 29600, 25600, 28400, 27000, 25300};
+uint16_t p4[28]={36400, 29100, 30500, 29100, 31800, 30100, 35000, 37100,
+                 34000, 38800, 33600, 39900, 42300, 41200, 42600, 37400,
+                 40800, 39200, 34000, 38400, 38800, 39500, 36000, 35000,
+                 32600, 29400, 32600, 30800};
+uint16_t p5[32]={47200, 44500, 38200, 37000, 40600, 41000, 36000, 55000,
+                 49700, 50700, 52500, 48900, 48100, 49700, 54600, 51600,
+                 52000, 58500, 56000, 56400, 49700, 45000, 56100, 46800,
+                 53400, 45400, 48000, 43400, 42600, 34800, 41400, 39000};
+uint16_t p6[36]={65535, 65535, 65535, 65535, 65535, 65535, 65535, 65535,
+                 65535, 65535, 65535, 65535, 65535, 65535, 65535, 65535,
+                 65535, 65535, 65535, 65535, 65535, 65535, 65535, 65535,
+                 65535, 65535, 65535, 65535, 65535, 65535, 65535, 65535,
+                 65535, 65535, 65535, 65535};
+uint16_t* LED_POWER[7]={p0,p1,p2,p3,p4,p5,p6};
+uint16_t LED_NUM[7] = {1, 8, 16, 24, 28, 32, 36};
+#define GSCLK1 5
+#define GSCLK2 6 // same signal
+#define GSCLK_PWM 1048576*1 // PWM frequency
 #define LAT 2   // On Arduino Mega
-#define CAM 8 // camera trigger
+#define CAM 0 // camera trigger
 
 // Spi pins are needed to send out control bit (SPI only supports bytes)
 #define SPI_MOSI 11 // 51 on mega, 22 on teensy2.0++
@@ -31,22 +56,26 @@ char Aledb[120] = {1,2,3,17,18,19,33,34,35,49,50,51,65,66,67,81,82,83,97,98,99,1
 
 
 void setup() {
-  pinMode(CAM, OUTPUT);
-// Now set the GSCKGRB to an output and a 50% PWM duty-cycle
-  // For simplicity all three grayscale clocks are tied to the same pin
-  for (i=0; i<100; i++) {
+  
+  // wait for serial connection (set timeout)
+  for (i=0; i<30; i++) {
     if (!Serial)
-      delay(50);
+      delay(100);
   }
-  pinMode(GSCLK, OUTPUT);
+  
+  pinMode(CAM, OUTPUT);
+  pinMode(GSCLK1, OUTPUT);
+  pinMode(GSCLK2, OUTPUT);
   pinMode(LAT,OUTPUT);
-
-  // Adjust PWM timer (Specific to each microcontroller)
   //TCCR2B = TCCR2B & 0b11111000 | 0x01;
 
+  // Adjust PWM timer (Specific to each microcontroller)
   // Set up clock pulse
-  analogWriteFrequency(GSCLK, 1048576);
-  analogWrite(GSCLK, 127);
+  analogWriteFrequency(GSCLK1, GSCLK_PWM);
+  analogWriteFrequency(GSCLK2, GSCLK_PWM);
+  // Now set the GSCKGRB to an output and a 50% PWM duty-cycle
+  analogWrite(GSCLK1, 127);
+  analogWrite(GSCLK2, 127);
 
   // The library does not ininiate SPI for you, so as to prevent issues with other SPI libraries
   SPI.begin();
@@ -76,9 +105,14 @@ void setup() {
   tlc.setAllLed(0);
   tlc.updateLeds();
   delay(1000);
-  tlc.setAllLed(1240);
+  tlc.setAllLed(2000);
   tlc.updateLeds();
-  delay(1000);
+  delay(2000);
+  /*for (j=0;j<100;j++){
+    tlc.setAllLed(30*j);
+  tlc.updateLeds();
+  delay(100);
+  }*/
   tlc.setAllLed(0);
   tlc.updateLeds();
   delay(1000);
@@ -87,29 +121,23 @@ void setup() {
   led_arr.setTLC(&tlc);
   loop_timer.delay_until(0);
   i=0;
+  ring=3;
 }
 
 void loop() {
   tlc.setAllLed(0);
-  //j=random(0, 5000);
-  //for (j=0;j<120;j++)
-  //tlc.setLed(Aledb[119]-1, random(0, 5000),random(0, 5000), random(0, 5000));
+  if (i>=LED_NUM[ring]) {
+      i=0;
+      ring=(ring+1)%6;
+  }
   
-  led_arr.setLed(0,i ,0,65535,0);
-  //led_arr.setLed(2,8*(i%2) ,0,0,65535);
-  //tlc.setAllLed(10*(i), 10*(i), 1000);
-  //tlc.setAllLed(3000);
-  //tlc.setLed(Aledb[i]-1,0,0,65535);
-  //tlc.setLed(Aledb[i]-1, 100,0,0);
-  tlc.updateLeds();
+  led_arr.setLed(ring, i,LED_POWER[ring][i],0, 0);
   i++;
-  i%=25;
-  //if(i<10) i=128;
-  //Serial.print(i);
-  //Serial.println(" loop");
+  tlc.updateLeds();
+  
+  delay(10);
   digitalWrite(CAM, HIGH);
   delay(10);
   digitalWrite(CAM, LOW);
-    
-  loop_timer.delay_until(200);
+  loop_timer.delay_until(5200);
 }
