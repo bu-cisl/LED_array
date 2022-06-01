@@ -43,7 +43,7 @@ uint16_t p6[36]={65535, 65535, 65535, 65535, 65535, 65535, 65535, 65535,
                  65535, 65535, 65535, 65535, 65535, 65535, 65535, 65535,
                  65535, 65535, 65535, 65535};
 uint16_t* LED_POWER[7]={p0,p1,p2,p3,p4,p5,p6};
-uint16_t LED_NUM[7] = {1, 8, 16, 24, 28, 32, 36};
+
 #define GSCLK1 5
 #define GSCLK2 6 // same signal
 #define GSCLK_PWM 1048576*1 // PWM frequency
@@ -105,33 +105,35 @@ void setup() {
   tlc.setAllLed(0);
   tlc.updateLeds();
   delay(1000);
-  tlc.setAllLed(2000);
+  tlc.setAllLed(500);
   tlc.updateLeds();
   delay(2000);
   /*for (j=0;j<100;j++){
     tlc.setAllLed(30*j);
-  tlc.updateLeds();
-  delay(100);
+    tlc.updateLeds();
+    delay(100);
   }*/
   tlc.setAllLed(0);
   tlc.updateLeds();
-  delay(1000);
+  delay(2000);
 
   // vars init
   led_arr.setTLC(&tlc);
-  loop_timer.delay_until(0);
   i=0;
-  ring=3;
+  ring=0;
+  loop_timer.delay_until(0);
 }
 
 void loop() {
   tlc.setAllLed(0);
-  if (i>=LED_NUM[ring]) {
+  if (i>=led_arr.LED_NUM[ring]) {
       i=0;
       ring=(ring+1)%6;
   }
   
-  led_arr.setLed(ring, i,LED_POWER[ring][i],0, 0);
+  led_arr.setLed(ring, i, LED_POWER[ring][i],0, 0);
+  //led_arr.setLed(ring, i, LED_POWER[ring][i],0, 0);
+  //led_arr.setDPC(led_arr.TOP, LED_POWER[ring][i],0, 0);
   i++;
   tlc.updateLeds();
   
@@ -139,5 +141,5 @@ void loop() {
   digitalWrite(CAM, HIGH);
   delay(10);
   digitalWrite(CAM, LOW);
-  loop_timer.delay_until(5200);
+  loop_timer.delay_until(400);
 }
