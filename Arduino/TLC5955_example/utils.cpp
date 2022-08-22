@@ -44,6 +44,7 @@ constexpr uint8_t rIDTArray::_LED_DF[120];
 void rIDTArray::setLed(uint16_t ring, uint16_t led, uint16_t red, uint16_t green, uint16_t blue)
 {
   uint16_t ledNum = -1;
+  float power_r = RED_LED_POWER[ring][led];
   if (_tlc == NULL)
     return;
   if (ring > 2)  // judge DF (big)
@@ -61,7 +62,7 @@ void rIDTArray::setLed(uint16_t ring, uint16_t led, uint16_t red, uint16_t green
     };
   // update only if valid
   if (ledNum != -1)
-    _tlc->setLed(ledNum - 1, red, green, blue);
+    _tlc->setLed(ledNum - 1, (uint16_t)(power_r * red / 65535), green, blue);
 }
 
 void rIDTArray::setLed(uint16_t ring, uint16_t led, uint16_t rgb)
@@ -72,31 +73,43 @@ void rIDTArray::setLed(uint16_t ring, uint16_t led, uint16_t rgb)
 void rIDTArray::setDPC(Direction d, uint16_t red, uint16_t green, uint16_t blue)
 {
   uint8_t i;
-  if (d == TOP || d == RIGHT) {
-    setLed(0, 0, red, green, blue);
-    for (i = 0; i < 3; i++)
+  switch (d) {
+  case TOP:
+    for (i = 1; i < 4; i++)
       setLed(1, i, red, green, blue);
-    for (i = 0; i < 5; i++)
+    for (i = 1; i < 8; i++)
+      setLed(2, i, red, green, blue);
+    break;
+  case BOTTOM:
+    for (i = 5; i < 8; i++)
+      setLed(1, i, red, green, blue);
+    for (i = 9; i < 16; i++)
+      setLed(2, i, red, green, blue);
+    break;
+  case LEFT:
+    for (i = 3; i < 6; i++)
+      setLed(1, i, red, green, blue);
+    for (i = 5; i < 12; i++)
+      setLed(2, i, red, green, blue);
+    break;
+  case RIGHT:
+    for (i = 7; i != 2; i=(i+1)%8)
+      setLed(1, i, red, green, blue);
+    for (i = 13; i != 4; i=(i+1)%16)
       setLed(2, i, red, green, blue);
   }
-  if (d == TOP || d == LEFT) {
-    for (i = 3; i < 5; i++)
-      setLed(1, i, red, green, blue);
-    for (i = 5; i < 9; i++)
-      setLed(2, i, red, green, blue);
-  }
-  if (d == BOTTOM || d == LEFT) {
-    for (i = 5; i < 6; i++)
-      setLed(1, i, red, green, blue);
-    for (i = 9; i < 12; i++)
-      setLed(2, i, red, green, blue);
-  }
-  if (d == BOTTOM || d == RIGHT) {
-    for (i = 6; i < 8; i++)
-      setLed(1, i, red, green, blue);
-    for (i = 12; i < 16; i++)
-      setLed(2, i, red, green, blue);
-  }
+//  if (d == BOTTOM || d == LEFT) {
+//    for (i = 5; i < 6; i++)
+//      setLed(1, i, red, green, blue);
+//    for (i = 9; i < 12; i++)
+//      setLed(2, i, red, green, blue);
+//  }
+//  if (d == BOTTOM || d == RIGHT) {
+//    for (i = 6; i < 8; i++)
+//      setLed(1, i, red, green, blue);
+//    for (i = 12; i < 16; i++)
+//      setLed(2, i, red, green, blue);
+//  }
 }
 
 void rIDTArray::setTLC(TLC5955 *tlc)
