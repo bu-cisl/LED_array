@@ -1,0 +1,5 @@
+tis_python/.idea
+tis_python/__pycache__
+tis_python/tisgrabber/*
+!tis_python/tisgrabber/__init__.py
+!tis_python/tisgrabber/loader.py
