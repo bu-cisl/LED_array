@@ -3,21 +3,51 @@ import ctypes
 import tisgrabber as tis
 import numpy as np
 import logging
-import time
+from math import prod
+from threading import Lock
 
 logging.basicConfig(format='%(asctime)s [%(levelname).1s] %(message)s', level=logging.DEBUG)
 
 EXPOSURE = 0.5
 
-def soft_trigger():
-    raise NotImplementedError
+PROCESSING_LOCK = Lock()
 
-def capture_callback(_, pBuffer, framenumber, pData):
-    print(pData.BytesPerPixel, pData.height)
-    image = np.ndarray(buffer=pBuffer.contents,
-                       dtype=np.uint16,
-                       shape=(pData.height.value, pData.width.value))
-    print(image.shape)
+
+# global_imgs = []
+
+# def soft_trigger():
+#     raise NotImplementedError
+
+class CallbackUserdata(ctypes.Structure):
+    """ Example for user data passed to the callback function.
+    """
+
+    def __init__(self):
+        self.width = ctypes.c_long()
+        self.height = ctypes.c_long()
+        self.bitsPerPixel = ctypes.c_int()
+        self.colorFormat = ctypes.c_int()
+        self.images = []
+        super().__init__()
+
+    def set_params(self, ic, hGrabber):
+        # Query the values of image description
+        ic.IC_GetImageDescription(hGrabber, self.width, self.height,
+                                  self.bitsPerPixel, self.colorFormat)
+
+
+def capture_callback(_, pBuffer, framenumber, pData: CallbackUserdata):
+    with PROCESSING_LOCK:
+        arduino.write(b'N')
+        logging.debug('get into callback')
+        logging.debug('raw %d, %d', pData.bitsPerPixel.value, pData.colorFormat.value)
+        assert pData.bitsPerPixel.value == 24
+        assert pData.colorFormat.value == 1
+        shape = (pData.height.value, pData.width.value, 3)
+        pBuffer = ctypes.cast(pBuffer, ctypes.POINTER(ctypes.c_ubyte * prod(shape)))
+        image = np.ndarray(buffer=pBuffer.contents, dtype=np.uint8, shape=shape)
+        logging.debug("got image shape: %s", shape)
+        pData.images.append(image[:, :, 0][:, ::-1].copy())
 
 
 def capture(ic, grabber, save=None):
@@ -58,19 +88,24 @@ def capture(ic, grabber, save=None):
 def main():
     ic = tis.loadLib()
     hGrabber = tis.openDevice(ic)
-    arduino = serial.Serial('COM3', timeout=1)  # 1s timeout
-    images = []
+    userdata = CallbackUserdata()
+    frameReadyCallbackfunc = ic.FRAMEREADYCALLBACK(capture_callback)
+    try:
+        if not ic.IC_IsDevValid(hGrabber):
+            ic.IC_MsgBox(b"No device opened", b"Auto capturing")
+        else:
+            ic.IC_SetContinuousMode(hGrabber, 0)
+            ic.IC_SetPropertySwitch(hGrabber, b"Trigger", b"Enable", 1)
 
-    if not ic.IC_IsDevValid(hGrabber):
-        ic.IC_MsgBox(b"No device opened", b"Auto capturing")
-    else:
-        try:
-            ic.IC_SetFormat(hGrabber, tis.SinkFormats.Y16.value)
             ic.IC_SetPropertySwitch(hGrabber, b"Exposure", b"Auto", 0)
             ic.IC_SetPropertyAbsoluteValue(hGrabber, b"Exposure", b"Value", ctypes.c_float(EXPOSURE))
-            ic.IC_StartLive(hGrabber, 1)
-            while capture(ic, hGrabber) is None:  # successfully capture -> initialized
-                pass
+            ic.IC_SetFrameReadyCallback(hGrabber, frameReadyCallbackfunc, userdata)
+            # ic.IC_SetFormat(hGrabber, 3)
+            ic.IC_StartLive(hGrabber, 0)
+            userdata.set_params(ic, hGrabber)
+            # while capture(ic, hGrabber) is None:  # successfully capture -> initialized
+            #     pass
+
             num = 1
             arduino.write(b'N')
             while True:
@@ -78,23 +113,28 @@ def main():
                 logging.debug('raw serial data: %s', out)
                 match out[:3]:
                     case b'[N]':
-                        logging.debug('capture start %d', num)
-                        images.append(capture(ic, hGrabber))
-                        logging.debug('capture end %d', num)
+                        # logging.debug("capture start %d", num)
+                        # images.append(capture(ic, hGrabber))
+                        # logging.debug("capture end %d", num)
+
+                        ic.IC_PropertyOnePush(hGrabber, b"Trigger", b"Software Trigger")
+                        logging.debug("trigger sent")
                         num += 1
-                        arduino.write(b'N')
                     case b'[F]':  # finished
-                        return np.stack(images)
+                        with PROCESSING_LOCK:
+                            return np.stack(userdata.images)
                     case b'[D]':  # debugging info
-                        logging.info('arduino says: %s', out[3:])
+                        logging.info("arduino says: %s", out[3:])
                     case _:
-                        logging.error(f'get invalid content: %s', out)
-        finally:
-            ic.IC_StopLive(hGrabber)
-            ic.IC_ReleaseGrabber(hGrabber)
-            arduino.close()
-            logging.info('finished')
+                        logging.error("get invalid content: %s", out)
+                        return
+    finally:
+        ic.IC_StopLive(hGrabber)
+        ic.IC_ReleaseGrabber(hGrabber)
+        arduino.close()
+        logging.info('finished')
 
 
 if __name__ == '__main__':
+    arduino = serial.Serial('COM3', timeout=3)  # 3s timeout
     imgs = main()
