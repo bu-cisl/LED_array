@@ -1,14 +1,16 @@
-import serial
 import ctypes
-import tisgrabber as tis
-import numpy as np
 import logging
+import time
 from math import prod
+import os
 from threading import Lock
 
-logging.basicConfig(format='%(asctime)s [%(levelname).1s] %(message)s', level=logging.DEBUG)
+import serial
+import tisgrabber as tis
+import numpy as np
+import data
 
-EXPOSURE = 0.5
+logging.basicConfig(format='%(asctime)s [%(levelname).1s] %(message)s', level=logging.DEBUG)
 
 PROCESSING_LOCK = Lock()
 
@@ -30,7 +32,7 @@ class CallbackUserdata(ctypes.Structure):
         self.images = []
         super().__init__()
 
-    def set_params(self, ic, hGrabber):
+    def get_image_params(self, ic, hGrabber):
         # Query the values of image description
         ic.IC_GetImageDescription(hGrabber, self.width, self.height,
                                   self.bitsPerPixel, self.colorFormat)
@@ -41,68 +43,40 @@ def capture_callback(_, pBuffer, framenumber, pData: CallbackUserdata):
         arduino.write(b'N')
         logging.debug('get into callback')
         logging.debug('raw %d, %d', pData.bitsPerPixel.value, pData.colorFormat.value)
-        assert pData.bitsPerPixel.value == 24
-        assert pData.colorFormat.value == 1
-        shape = (pData.height.value, pData.width.value, 3)
-        pBuffer = ctypes.cast(pBuffer, ctypes.POINTER(ctypes.c_ubyte * prod(shape)))
-        image = np.ndarray(buffer=pBuffer.contents, dtype=np.uint8, shape=shape)
+        # 16 bit output
+        BIT_DEPTH = 16
+        CHANNELS = 1
+        assert pData.bitsPerPixel.value == BIT_DEPTH * CHANNELS
+        assert pData.colorFormat.value == tis.SinkFormats.Y16
+        shape = (pData.height.value, pData.width.value, CHANNELS)
+        dtype = {8: np.uint8, 16: np.uint16}[BIT_DEPTH]
+        pBuffer = ctypes.cast(pBuffer, ctypes.POINTER(ctypes.c_ubyte * prod(shape) * (BIT_DEPTH // 8)))
+        # note: use buffer without copy may overwrite previous data
+        image = np.ndarray(buffer=pBuffer.contents, dtype=dtype, shape=shape).squeeze().copy()
         logging.debug("got image shape: %s", shape)
-        pData.images.append(image[:, :, 0][:, ::-1].copy())
+        pData.images.append(image)
 
 
-def capture(ic, grabber, save=None):
-    if ic.IC_SnapImage(grabber, 2000) == tis.IC_SUCCESS:
-        # Declare variables of image description
-        Width = ctypes.c_long()
-        Height = ctypes.c_long()
-        BitsPerPixel = ctypes.c_int()
-        colorformat = ctypes.c_int()
-
-        # Query the values of image description
-        ic.IC_GetImageDescription(grabber, Width, Height,
-                                  BitsPerPixel, colorformat)
-
-        # Calculate the buffer size
-        assert BitsPerPixel.value == 16
-        assert colorformat.value == tis.SinkFormats.Y16
-        buffer_size = Width.value * Height.value * BitsPerPixel.value
-
-        # Get the image data
-        imagePtr = ic.IC_GetImagePtr(grabber)
-
-        imagedata = ctypes.cast(imagePtr, ctypes.POINTER(ctypes.c_ubyte * buffer_size))
-
-        # Create the numpy array
-        image = np.ndarray(buffer=imagedata.contents,
-                           dtype=np.uint16,
-                           shape=(Height.value, Width.value))
-        if save is not None:
-            np.save(f'{save}.npy', image)
-            return True
-        else:
-            return image
-    else:
-        logging.warning("No frame received in 2 seconds.")
-
-
-def main():
+def main(exposure=4.):
     ic = tis.loadLib()
-    hGrabber = tis.openDevice(ic)
+    # hGrabber = tis.openDevice(ic)
+    hGrabber = ic.IC_LoadDeviceStateFromFile(None, tis.T("devicedmk.xml"))
     userdata = CallbackUserdata()
     frameReadyCallbackfunc = ic.FRAMEREADYCALLBACK(capture_callback)
     try:
         if not ic.IC_IsDevValid(hGrabber):
             ic.IC_MsgBox(b"No device opened", b"Auto capturing")
         else:
+            ic.IC_SetVideoFormat(hGrabber, b"Y16 (4504x4504)")
+            ic.IC_SetFormat(hGrabber, tis.SinkFormats.Y16)
             ic.IC_SetContinuousMode(hGrabber, 0)
             ic.IC_SetPropertySwitch(hGrabber, b"Trigger", b"Enable", 1)
-
             ic.IC_SetPropertySwitch(hGrabber, b"Exposure", b"Auto", 0)
-            ic.IC_SetPropertyAbsoluteValue(hGrabber, b"Exposure", b"Value", ctypes.c_float(EXPOSURE))
+            ic.IC_SetPropertyAbsoluteValue(hGrabber, b"Exposure", b"Value", ctypes.c_float(exposure))
+            # parameters should be set before this line (IC_SetFrameReadyCallback)
             ic.IC_SetFrameReadyCallback(hGrabber, frameReadyCallbackfunc, userdata)
-            # ic.IC_SetFormat(hGrabber, 3)
             ic.IC_StartLive(hGrabber, 0)
-            userdata.set_params(ic, hGrabber)
+            userdata.get_image_params(ic, hGrabber)
             # while capture(ic, hGrabber) is None:  # successfully capture -> initialized
             #     pass
 
@@ -137,4 +111,4 @@ def main():
 
 if __name__ == '__main__':
     arduino = serial.Serial('COM3', timeout=3)  # 3s timeout
-    imgs = main()
+    imgs = main(exposure=0.5)
