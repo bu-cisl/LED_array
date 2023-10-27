@@ -126,31 +126,17 @@ def read(source, dtype=None, shape=None, *, scale=1., **kwargs):
     return arr
 
 
-def tiff_write(path, arr, *, scale=1, pre_operator: callable = None, dtype=np.uint16, compress: bool = True):
-    """
-    Export a list of Tensors to a multi-page tiff
-
-    ``pre_operator`` can apply some numpy functions before the data to be exported, such as brightness
-    and contrast adjustment. Normally it is used to avoid saturation or too dark pictures
-
-    Argument ``scale`` is a simpler way than `pre_operator` to adjust data range.
-    If ``scale`` is ``None``, it will write the raw data. Please note that this is
-    **different** with ``scale=1``
-
-    Argument ``dtype`` means the color depth of the exported image. It must be 16bit - ``np.uint16``
-    (default) or 8bit - ``np.uint8``
-
-    :param path: Target file path
-    :param arr: Tensor data to be written
-    :param scale: Multiplier to adjust value range
-    :param pre_operator: Preprocess function before scaling
-    :param dtype: Color depth of the exported image
-    :param compress: Using lossless compression
-    """
+def tiff_write(path, arr, *, scale=1, pre_operator: callable = None, dtype=np.uint16,
+               compression='zlib', photometric=None):
+    from tifffile import TiffWriter
     arr = np.squeeze(arr)
-    if len(arr.shape) == 2:
+    shape = arr.shape
+    if photometric == 'rgb':
+        assert shape[-1] == 3, "rgb need exactly 3 channels"
+        shape = shape[:-1]
+    if len(shape) == 2:
         arr = [arr]
-    elif len(arr.shape) != 3:
+    elif len(shape) != 3:
         raise ValueError(f"Must export 2-D or 3-D array but got {len(arr.shape)}-D data, "
                          f"shape {arr.shape}.")
     with TiffWriter(path) as out_file:
@@ -159,22 +145,26 @@ def tiff_write(path, arr, *, scale=1, pre_operator: callable = None, dtype=np.ui
                 i = pre_operator(i)
             try:
                 if scale is not None:
-                    i *= scale * {np.uint16: 65535, np.uint8: 255}[dtype]
+                    i = i * scale * {np.uint16: 65535, np.uint8: 255}[dtype]
                 i = i.astype(np.int64)
                 np.clip(i, 0, {np.uint16: 65535, np.uint8: 255}[dtype], out=i)
             except KeyError:
                 raise TypeError(f"dtype should be either np.uint8 or np.uint16, but not {dtype}") from None
             i = i.astype(dtype)
-            if compress:
-                out_file.save(i, compression=5, predictor=True)
+            if compression is not None:
+                try:
+                    out_file.write(i, compression=compression, predictor=True, photometric=photometric)
+                except ValueError:
+                    out_file.write(i, compression=compression, photometric=photometric)
             else:
-                out_file.save(i)
+                out_file.write(i, photometric=photometric)
 
 
-def np_write(path, arr, *, scale=1., pre_operator=None, dtype=None, compress=True):
+def np_write(path, arr, *, scale=None, pre_operator=None, dtype=None, compress=True):
     if pre_operator is not None:
         arr = pre_operator(arr)
-    arr *= scale
+    if scale is not None:
+        arr *= scale
     if dtype is not None:
         arr = arr.astype(dtype)
     ext = os.path.splitext(path)[-1]
@@ -221,14 +211,10 @@ def mat_write(path, arr, *, scale=1., pre_operator=None, dtype=None, compress=Tr
 def write(dest, array, **kwargs):
     if isinstance(array, np.ndarray):
         arr = array
-    elif isinstance(array, gpuarray.GPUArray):
-        arr = array.get()
     else:
         arr = [page for page in array]
         if isinstance(arr[0], np.ndarray):
             arr = np.stack(arr)
-        elif isinstance(arr[0], gpuarray.GPUArray):
-            arr = np.stack([gpu_arr.get() for gpu_arr in arr])
         else:
             try:
                 warn("trying general np.array fallback", stacklevel=2)
