@@ -19,7 +19,7 @@ rIDTArray led_arr;
 
 #define GSCLK1 5
 #define GSCLK2 6 // same signal
-#define GSCLK_PWM 1048576*1 // PWM frequency
+#define GSCLK_PWM 248576 // PWM frequency
 #define LAT 2   // On Arduino Mega
 #define CAM 0 // camera trigger
 
@@ -81,10 +81,10 @@ void setup() {
   tlc.setRgbPinOrder(0,1,2);
   tlc.setAllLed(0);
   tlc.updateLeds();
-  delay(1000);
+  delay(200);
   tlc.setAllLed(500);
   tlc.updateLeds();
-  delay(2000);
+  delay(1000);
   /*for (j=0;j<100;j++){
     tlc.setAllLed(30*j);
     tlc.updateLeds();
@@ -92,7 +92,7 @@ void setup() {
   }*/
   tlc.setAllLed(0);
   tlc.updateLeds();
-  delay(2000);
+  delay(200);
 
   // vars init
   led_arr.setTLC(&tlc);
