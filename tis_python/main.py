@@ -1,6 +1,8 @@
 import ctypes
 import logging
+import shutil
 import time
+from concurrent.futures import ThreadPoolExecutor
 from math import prod
 import os
 from threading import Lock
@@ -57,10 +59,12 @@ def capture_callback(_, pBuffer, framenumber, pData: CallbackUserdata):
         pData.images.append(image)
 
 
-def main(exposure=4.):
+def main(exposure=4., camera_cfg=None):
     ic = tis.loadLib()
-    # hGrabber = tis.openDevice(ic)
-    hGrabber = ic.IC_LoadDeviceStateFromFile(None, tis.T("devicedmk.xml"))
+    if camera_cfg is None:
+        hGrabber = tis.openDevice(ic)
+    else:
+        hGrabber = ic.IC_LoadDeviceStateFromFile(None, tis.T(camera_cfg))
     userdata = CallbackUserdata()
     frameReadyCallbackfunc = ic.FRAMEREADYCALLBACK(capture_callback)
     try:
@@ -87,10 +91,6 @@ def main(exposure=4.):
                 logging.debug('raw serial data: %s', out)
                 match out[:3]:
                     case b'[N]':
-                        # logging.debug("capture start %d", num)
-                        # images.append(capture(ic, hGrabber))
-                        # logging.debug("capture end %d", num)
-
                         ic.IC_PropertyOnePush(hGrabber, b"Trigger", b"Software Trigger")
                         logging.debug("trigger sent")
                         num += 1
@@ -110,5 +110,17 @@ def main(exposure=4.):
 
 
 if __name__ == '__main__':
-    arduino = serial.Serial('COM3', timeout=3)  # 3s timeout
-    imgs = main(exposure=0.5)
+    time.sleep(3)
+    dir_name = r"data"
+    camera_cfg = 'devicedmk.xml'
+    os.makedirs(dir_name, exist_ok=True)
+    shutil.copyfile(camera_cfg, os.path.join(dir_name, camera_cfg))
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        for name, ex in zip(['1_16', '1_4', '1', '4'], [1 / 16., 1 / 4., 1., 4.]):
+            file_name = os.path.join(dir_name, f"{name}.tiff")
+            if os.path.exists(file_name):
+                raise FileExistsError
+
+            arduino = serial.Serial('COM3', timeout=5)  # 5s timeout
+            imgs = main(ex, camera_cfg)
+            executor.submit(data.write, file_name, imgs, scale=None, dtype=np.uint16)
