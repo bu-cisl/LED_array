@@ -12,5 +12,6 @@ If you find this project useful in your research, please consider citing our pap
 
 # Acknowledgement
 Our code is based on the code and documentation of these following repos. Please also give credit to them if you find the related part is useful to you!
-https://github.com/yibiophotonics/LED_array
-https://github.com/TheImagingSource/IC-Imaging-Control-Samples
+
+- https://github.com/yibiophotonics/LED_array
+- https://github.com/TheImagingSource/IC-Imaging-Control-Samples
