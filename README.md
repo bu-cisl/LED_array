@@ -9,3 +9,8 @@ This repo contains the controlling code for The Imaging Source (TIS) camera and 
 # Citation
 If you find this project useful in your research, please consider citing our paper: 
 <div class="csl-entry">Wang, H., Zhu, J., Sung, J., Hu, G., Greene, J., Li, Y., Park, S., Kim, W., Lee, M., Yang, Y., &#38; Tian, L. (2023). Fourier ptychographic topography. <i>Optics Express</i>, <i>31</i>(7), 11007. https://doi.org/10.1364/oe.481712</div>
+
+# Acknowledgement
+Our code is based on the code and documentation of these following repos. Please also give credit to them if you find the related part is useful to you!
+https://github.com/yibiophotonics/LED_array
+https://github.com/TheImagingSource/IC-Imaging-Control-Samples
